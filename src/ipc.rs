@@ -17,6 +17,7 @@ pub enum Request {
     Accept { device: String },
     Reject { device: String },
     Send { device: String, items: Vec<String> },
+    Text { device: String, text: String },
     Mount { device: String },
     Unmount { device: String },
     Remote { device: String },

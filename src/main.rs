@@ -1,5 +1,6 @@
 mod border;
 mod capture;
+mod clipboard;
 mod config;
 mod daemon;
 mod input;
@@ -27,7 +28,8 @@ usage:
   lanlink accept <device>          accept an incoming pair request
   lanlink reject <device>
   lanlink send <device> <file|url>...
-  lanlink mount <device>           browse a phone at ~/Phone/<name>
+  lanlink clip <device>            send this clipboard to <device>'s clipboard
+  lanlink mount <device>           browse a phone's storage
   lanlink unmount <device>
   lanlink remote <device>          control <device> with this keyboard/touchpad
                                    (Ctrl+Alt+Esc releases)
@@ -83,6 +85,13 @@ fn real_main() -> Result<()> {
         "release" => Request::Release,
         "ping" => Request::Ping { device: dev(&args)? },
         "connect" => Request::Connect { addr: dev(&args)? },
+        "clip" => {
+            let text = clipboard::get()?;
+            if text.is_empty() {
+                bail!("the clipboard is empty");
+            }
+            Request::Text { device: dev(&args)?, text }
+        }
         "send" => {
             let device = dev(&args)?;
             if args.len() < 3 {

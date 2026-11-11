@@ -4,7 +4,7 @@
 
 use crate::daemon::{Daemon, Transfer};
 use crate::protocol::{self, Packet};
-use crate::{notify, tls};
+use crate::{clipboard, notify, tls};
 use anyhow::{Context, Result, anyhow, bail};
 use serde_json::json;
 use std::net::Ipv4Addr;
@@ -47,7 +47,11 @@ fn update(d: &Daemon, tid: u64, done: i64, status: Option<String>) {
 pub fn receive(d: Arc<Daemon>, id: &str, p: Packet) {
     let from = d.name_of(id);
     if let Some(text) = p.str("text") {
-        notify::show(format!("Text from {from}"), text);
+        if d.cfg.clipboard && clipboard::set(text) {
+            notify::show(format!("Text from {from}"), format!("Copied to clipboard: {text}"));
+        } else {
+            notify::show(format!("Text from {from}"), text);
+        }
         return;
     }
     if let Some(url) = p.str("url") {

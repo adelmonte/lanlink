@@ -5,6 +5,8 @@
 # download_dir = "~/Downloads"
 # mount_dir = "/run/user/1000/lanlink"   # phones mount at <mount_dir>/<name> ($XDG_RUNTIME_DIR/lanlink by default)
 
+# clipboard = true           # put received text on the clipboard (needs wl-clipboard or xclip)
+
 # pointer_speed = 1.0
 # scroll_speed = 1.0         # wheel notches per received scroll event
 # invert_scroll = false      # flip received scrolling

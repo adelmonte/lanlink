@@ -741,6 +741,12 @@ impl Daemon {
                 share::send(self.clone(), id, items)?;
                 Value::Null
             }
+            Text { device, text } => {
+                let id = self.resolve(&device)?;
+                self.require_paired(&id)?;
+                self.send(&id, Packet::new(protocol::SHARE, json!({"text": text})))?;
+                Value::Null
+            }
             Mount { device } => {
                 let id = self.resolve(&device)?;
                 self.require_paired(&id)?;

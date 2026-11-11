@@ -18,6 +18,8 @@ pub struct Config {
     pub mount_dir: PathBuf,
     /// TCP port to listen on (KDE Connect uses 1716-1764).
     pub tcp_port: u16,
+    /// Put text received from a device on the clipboard.
+    pub clipboard: bool,
     /// Broadcast and listen for other devices on UDP 1716.
     pub discovery: bool,
     /// Multiplier for pointer movement (both directions).
@@ -46,6 +48,7 @@ impl Default for Config {
             download_dir: dirs::download_dir().unwrap_or_else(|| home.join("Downloads")),
             mount_dir: dirs::runtime_dir().map(|d| d.join("lanlink")).unwrap_or_else(|| home.join("Phone")),
             tcp_port: 1716,
+            clipboard: true,
             discovery: true,
             pointer_speed: 1.0,
             scroll_speed: 1.0,

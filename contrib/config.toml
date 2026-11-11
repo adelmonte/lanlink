@@ -3,7 +3,7 @@
 # name = "tv-box"            # defaults to the hostname
 # device_type = "desktop"    # desktop, laptop, tv, phone, tablet
 # download_dir = "~/Downloads"
-# mount_dir = "~/Phone"      # phones mount at <mount_dir>/<name>
+# mount_dir = "/run/user/1000/lanlink"   # phones mount at <mount_dir>/<name> ($XDG_RUNTIME_DIR/lanlink by default)
 
 # pointer_speed = 1.0
 # scroll_speed = 1.0         # wheel notches per received scroll event

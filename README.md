@@ -7,7 +7,8 @@ Connect app), and with other machines running lanlink.
 What it does:
 
 - **Send/receive files** (and links/text). Received files go to `~/Downloads`.
-- **Browse the phone**: mounts its storage with `sshfs` at `~/Phone/<name>`.
+- **Browse the phone**: mounts its storage with `sshfs` at `$XDG_RUNTIME_DIR/lanlink/<name>`
+  (e.g. `/run/user/1000/lanlink/Pixel`); set `mount_dir` to put it elsewhere.
 - **Media control**: the phone sees and controls desktop players (MPRIS).
 - **Remote input, receiving**: phone or another machine moves the mouse and
   types here, through `/dev/uinput` (any compositor, X11 too).

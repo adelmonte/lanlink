@@ -44,7 +44,7 @@ impl Default for Config {
                 .unwrap_or_else(|| "lanlink".into()),
             device_type: "desktop".into(),
             download_dir: dirs::download_dir().unwrap_or_else(|| home.join("Downloads")),
-            mount_dir: home.join("Phone"),
+            mount_dir: dirs::runtime_dir().map(|d| d.join("lanlink")).unwrap_or_else(|| home.join("Phone")),
             tcp_port: 1716,
             discovery: true,
             pointer_speed: 1.0,

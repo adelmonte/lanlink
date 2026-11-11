@@ -49,6 +49,8 @@ pub struct Device {
     pub pair: PairState,
     pub battery: Option<(i64, bool)>,
     pub mount: Option<PathBuf>,
+    /// Where it was last connected from, to reconnect after it drops.
+    pub last_ip: Option<IpAddr>,
 }
 
 impl Device {
@@ -64,6 +66,7 @@ impl Device {
             pair: PairState::None,
             battery: None,
             mount: None,
+            last_ip: None,
         }
     }
     pub fn paired(&self) -> bool {
@@ -145,6 +148,7 @@ pub async fn run() -> Result<()> {
     if daemon.cfg.discovery {
         tokio::spawn(daemon.clone().discovery());
     }
+    tokio::spawn(daemon.clone().reconnect_loop());
     tokio::spawn(mpris::push_loop(daemon.clone()));
     tokio::spawn(daemon.clone().ipc_loop(ipc));
 
@@ -290,6 +294,7 @@ impl Daemon {
 
     /// They connected to us: read their plaintext identity, then we are the TLS client.
     async fn incoming(self: Arc<Self>, mut tcp: TcpStream, addr: SocketAddr) -> Result<()> {
+        keepalive(&tcp);
         let line = timeout(Duration::from_secs(10), read_raw_line(&mut tcp)).await??;
         let p = Packet::parse(&line)?;
         if p.kind != protocol::IDENTITY {
@@ -306,6 +311,7 @@ impl Daemon {
     /// send our identity, then we are the TLS server.
     pub async fn outgoing(self: Arc<Self>, addr: SocketAddr, pre: Option<Value>) -> Result<()> {
         let mut tcp = timeout(Duration::from_secs(5), TcpStream::connect(addr)).await??;
+        keepalive(&tcp);
         tcp.write_all(&self.identity(true).to_line()).await?;
         let tls = timeout(Duration::from_secs(10), self.tls_acceptor().accept(tcp)).await??;
         self.run_link(TlsStream::Server(tls), addr.ip(), pre).await
@@ -395,6 +401,7 @@ impl Daemon {
             .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
             .unwrap_or_default();
         d.cert = Some(cert);
+        d.last_ip = Some(ip);
         d.link = Some(Link { tx, generation, ip }); // replaces (and so closes) any older link
         d.pair = PairState::None;
         if changed && d.paired() {
@@ -428,6 +435,31 @@ impl Daemon {
             && let Some(l) = &d.link
         {
             let _ = l.tx.send(Packet::new(protocol::MOUSEPAD_KEYBOARD, json!({"state": true})));
+        }
+    }
+
+    /// A sleeping phone doesn't hear broadcasts, but a unicast connection
+    /// wakes it. Keep trying paired devices where they were last seen.
+    async fn reconnect_loop(self: Arc<Self>) {
+        loop {
+            tokio::time::sleep(Duration::from_secs(20)).await;
+            let targets: Vec<(String, IpAddr)> = {
+                let mut st = self.lock();
+                let t: Vec<_> = st
+                    .devices
+                    .values()
+                    .filter(|d| d.paired() && !d.online())
+                    .filter_map(|d| d.last_ip.map(|ip| (d.id.clone(), ip)))
+                    .collect();
+                t.into_iter().filter(|(id, _)| st.connecting.insert(id.clone())).collect()
+            };
+            for (id, ip) in targets {
+                let me = self.clone();
+                tokio::spawn(async move {
+                    let _ = me.clone().outgoing(SocketAddr::new(ip, protocol::UDP_PORT), None).await;
+                    me.lock().connecting.remove(&id);
+                });
+            }
         }
     }
 
@@ -816,4 +848,14 @@ impl Daemon {
     fn dev_name(&self, st: &State, id: &str) -> String {
         st.devices.get(id).map(|d| d.name.clone()).unwrap_or_else(|| id.into())
     }
+}
+
+/// Notice a vanished peer within about half a minute instead of never; the
+/// probes also keep a dozing phone's connection from going stale.
+fn keepalive(tcp: &TcpStream) {
+    let ka = socket2::TcpKeepalive::new()
+        .with_time(Duration::from_secs(15))
+        .with_interval(Duration::from_secs(5))
+        .with_retries(3);
+    let _ = socket2::SockRef::from(tcp).set_tcp_keepalive(&ka);
 }

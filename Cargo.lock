@@ -870,6 +870,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.1",
  "smithay-client-toolkit",
+ "socket2",
  "tokio",
  "tokio-rustls",
  "toml",

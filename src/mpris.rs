@@ -95,7 +95,8 @@ where
 async fn players(c: &Connection) -> Result<Vec<Player>> {
     let msg = call(c, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "ListNames", &()).await?;
     let mut names: Vec<String> = msg.body().deserialize::<Vec<String>>()?;
-    names.retain(|n| n.starts_with(PREFIX));
+    // playerctld is a proxy for the other players, not one itself.
+    names.retain(|n| n.starts_with(PREFIX) && !n.ends_with(".playerctld"));
     names.sort();
     let mut out: Vec<Player> = vec![];
     for bus in names {

@@ -1,7 +1,9 @@
 [package]
 name = "lanlink"
 version = "0.1.0"
-description = "Minimal KDE Connect-compatible daemon and TUI"
+description = "A small KDE Connect alternative: daemon and TUI in one binary"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/adelmonte/lanlink"
 edition = "2024"
 
 [dependencies]

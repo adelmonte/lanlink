@@ -166,7 +166,7 @@ fn status(name: &str, p: &HashMap<String, OwnedVariant>) -> Value {
 
 fn list_packet(players: &[Player]) -> Packet {
     let names: Vec<&str> = players.iter().map(|p| p.name.as_str()).collect();
-    Packet::new(protocol::MPRIS, json!({"playerList": names, "supportAlbumArtPayload": false}))
+    Packet::new(protocol::MPRIS, json!({"playerList": names, "supportAlbumArtPayload": true}))
 }
 
 pub async fn handle_request(d: Arc<Daemon>, id: &str, p: Packet) {
@@ -185,6 +185,19 @@ async fn handle_inner(d: &Daemon, id: &str, p: &Packet) -> Result<()> {
     let Some(name) = p.str("player") else { return Ok(()) };
     let Some(pl) = list.iter().find(|x| x.name == name) else { return Ok(()) };
     let bus = pl.bus.as_str();
+
+    // The phone wants the cover. Only ever send the file the player itself
+    // names as its current art, never an arbitrary path from the request.
+    if let Some(url) = p.str("albumArtUrl") {
+        let current = status(&pl.name, &props(c, bus).await?);
+        if current["albumArtUrl"].as_str() == Some(url)
+            && let Some(path) = file_url_path(url)
+        {
+            let pkt = Packet::new(protocol::MPRIS, json!({"transferringAlbumArt": true, "player": pl.name, "albumArtUrl": url}));
+            crate::share::send_payload(d, id, pkt, &path).await?;
+        }
+        return Ok(());
+    }
 
     if let Some(action) = p.str("action")
         && ["PlayPause", "Play", "Pause", "Next", "Previous", "Stop"].contains(&action)
@@ -282,4 +295,25 @@ pub async fn push_loop(d: Arc<Daemon>) {
             }
         }
     }
+}
+
+/// `file:///a%20b.jpg` -> `/a b.jpg`.
+fn file_url_path(url: &str) -> Option<std::path::PathBuf> {
+    let raw = url.strip_prefix("file://")?.as_bytes();
+    let mut out = Vec::with_capacity(raw.len());
+    let mut i = 0;
+    while i < raw.len() {
+        if raw[i] == b'%'
+            && let Some(hex) = raw.get(i + 1..i + 3)
+            && let Ok(b) = u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16)
+        {
+            out.push(b);
+            i += 3;
+        } else {
+            out.push(raw[i]);
+            i += 1;
+        }
+    }
+    let p = std::path::PathBuf::from(String::from_utf8(out).ok()?);
+    p.is_absolute().then_some(p)
 }

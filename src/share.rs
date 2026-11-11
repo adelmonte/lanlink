@@ -209,6 +209,33 @@ async fn bind_payload() -> Result<(TcpListener, u16)> {
     bail!("no free payload port in 1739-1764")
 }
 
+/// Largest file sent alongside a non-share packet (album art).
+const MAX_ATTACHMENT: u64 = 16 * 1024 * 1024;
+
+/// Send `p` with the contents of `path` as its payload. Waits for the device to fetch it.
+pub async fn send_payload(d: &Daemon, id: &str, mut p: Packet, path: &Path) -> Result<()> {
+    let cert = d.cert_of(id).ok_or_else(|| anyhow!("device not paired"))?;
+    let data = tokio::fs::read(path).await.with_context(|| format!("reading {}", path.display()))?;
+    if data.len() as u64 > MAX_ATTACHMENT {
+        bail!("{} is too large to send", path.display());
+    }
+    let (listener, port) = bind_payload().await?;
+    p.payload_size = Some(data.len() as i64);
+    p.payload_info = Some(json!({"port": port}));
+    d.send(id, p)?;
+    let (tcp, _) = timeout(Duration::from_secs(20), listener.accept()).await.context("device never fetched the payload")??;
+    drop(listener);
+    let mut tls = timeout(Duration::from_secs(10), d.tls_acceptor().accept(tcp)).await??;
+    let peer = tls.get_ref().1.peer_certificates().and_then(|c| c.first()).map(|c| c.as_ref().to_vec());
+    if peer.as_deref() != Some(cert.as_slice()) {
+        bail!("payload socket presented the wrong certificate");
+    }
+    timeout(Duration::from_secs(30), tls.write_all(&data)).await??;
+    tls.flush().await?;
+    let _ = tls.shutdown().await;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn upload(d: &Daemon, id: &str, path: &Path, name: &str, size: u64, count: usize, total: u64, tid: u64) -> Result<()> {
     let cert = d.cert_of(id).ok_or_else(|| anyhow!("device not paired"))?;

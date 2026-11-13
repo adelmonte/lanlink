@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tokio::sync::OnceCell;
+use futures_util::StreamExt;
+use tokio::sync::{Notify, OnceCell};
 use zbus::{Connection, OwnedVariant, Variant};
 
 const PREFIX: &str = "org.mpris.MediaPlayer2.";
@@ -199,6 +200,10 @@ async fn handle_inner(d: &Daemon, id: &str, p: &Packet) -> Result<()> {
         return Ok(());
     }
 
+    // A command's result reaches the phone through the player's own change
+    // signal (see push_loop), so only plain status requests are answered here.
+    let commands = ["action", "setVolume", "Seek", "SetPosition", "setLoopStatus", "setShuffle"];
+    let is_command = commands.iter().any(|k| p.body.get(*k).is_some());
     if let Some(action) = p.str("action")
         && ["PlayPause", "Play", "Pause", "Next", "Previous", "Stop"].contains(&action)
     {
@@ -229,8 +234,9 @@ async fn handle_inner(d: &Daemon, id: &str, p: &Packet) -> Result<()> {
     if let Some(sh) = p.body.get("setShuffle").and_then(Value::as_bool) {
         call(c, bus, PATH, PROPS, "Set", &(PLAYER, "Shuffle", Variant::Bool(sh))).await?;
     }
-    // Let the player apply the change before reporting back.
-    tokio::time::sleep(Duration::from_millis(100)).await;
+    if is_command {
+        return Ok(());
+    }
     let st = status(&pl.name, &props(c, bus).await?);
     d.send(id, Packet::new(protocol::MPRIS, st))?;
     Ok(())
@@ -243,14 +249,48 @@ struct Sent {
     playing: bool,
 }
 
-/// Push changes to subscribed devices once a second. Position is only sent
+/// Players announce their own changes on the bus: a player appearing or
+/// leaving, a property changing (track, play state, volume) or a seek.
+const SIGNALS: &[&str] = &[
+    "type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged',path='/org/mpris/MediaPlayer2'",
+    "type='signal',interface='org.mpris.MediaPlayer2.Player',member='Seeked',path='/org/mpris/MediaPlayer2'",
+    "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0namespace='org.mpris.MediaPlayer2'",
+];
+
+/// Wakes `changed` whenever a player signals a change.
+async fn watch(c: &'static Connection, changed: Arc<Notify>) {
+    for rule in SIGNALS {
+        let Ok(mut stream) = zbus::MessageStream::for_match_rule(*rule, c, None).await else {
+            eprintln!("lanlink: mpris: can't watch for player changes; checking every few seconds instead");
+            continue;
+        };
+        let changed = changed.clone();
+        tokio::spawn(async move {
+            while stream.next().await.is_some() {
+                changed.notify_one();
+            }
+        });
+    }
+}
+
+/// Push player changes to subscribed devices as the players announce them.
+/// A slow check catches players that don't signal. Position is only sent
 /// when it jumps; the phone extrapolates it while playing.
 pub async fn push_loop(d: Arc<Daemon>) {
     let mut last_lists: HashMap<String, Vec<String>> = HashMap::new();
     let mut last: HashMap<(String, String), Sent> = HashMap::new();
-    let mut tick = tokio::time::interval(Duration::from_secs(1));
+    let changed = Arc::new(Notify::new());
+    if let Some(c) = bus().await {
+        watch(c, changed.clone()).await;
+    }
     loop {
-        tick.tick().await;
+        tokio::select! {
+            _ = changed.notified() => {
+                // A change usually comes as a burst of signals; send it once.
+                tokio::time::sleep(Duration::from_millis(30)).await;
+            }
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {}
+        }
         let subs: Vec<String> = {
             let st = d.lock();
             subscribers().into_iter().filter(|id| st.devices.get(id).is_some_and(|x| x.online())).collect()

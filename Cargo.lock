@@ -860,6 +860,7 @@ dependencies = [
  "anyhow",
  "dirs",
  "evdev",
+ "futures-util",
  "hex",
  "hostname",
  "notify-rust",

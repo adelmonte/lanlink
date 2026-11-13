@@ -10,6 +10,8 @@ stock KDE Connect app, and other machines running lanlink.
   device, and text sent here lands on the clipboard. Nothing syncs on its own.
 - **Browse the phone**: its storage mounts with `sshfs` under `$XDG_RUNTIME_DIR/lanlink/<name>`.
 - **Media**: the phone controls desktop players (MPRIS), from its own media controls.
+- **Recognized songs**: with the app's Audile setting on, each song Audile finds is
+  passed to `song_command` (by default `music-tui --like`, which adds it to Liked Songs).
 - **Remote input**: the phone, or another machine, drives the mouse and keyboard
   through `/dev/uinput` (any compositor, X11 too). `lanlink remote <device>` does
   the reverse and drives another machine from this keyboard; Ctrl+Alt+Esc releases.

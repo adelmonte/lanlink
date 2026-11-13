@@ -22,9 +22,11 @@ pub const MPRIS_REQUEST: &str = "kdeconnect.mpris.request";
 pub const MOUSEPAD: &str = "kdeconnect.mousepad.request";
 pub const MOUSEPAD_ECHO: &str = "kdeconnect.mousepad.echo";
 pub const MOUSEPAD_KEYBOARD: &str = "kdeconnect.mousepad.keyboardstate";
+/// A song the phone recognized (lanlink only): title, artist, album, isrc.
+pub const SONG: &str = "lanlink.song";
 
 /// Packets we accept. The phone app hides features we don't list here.
-pub const INCOMING: &[&str] = &[PING, BATTERY, SHARE, SHARE_UPDATE, SFTP, MPRIS_REQUEST, MOUSEPAD];
+pub const INCOMING: &[&str] = &[PING, BATTERY, SHARE, SHARE_UPDATE, SFTP, MPRIS_REQUEST, MOUSEPAD, SONG];
 /// Packets we send.
 pub const OUTGOING: &[&str] = &[
     PING, SHARE, SFTP_REQUEST, MPRIS, MOUSEPAD, MOUSEPAD_ECHO, MOUSEPAD_KEYBOARD,

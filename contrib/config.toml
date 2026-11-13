@@ -6,6 +6,7 @@
 # mount_dir = "/run/user/1000/lanlink"   # phones mount at <mount_dir>/<name> ($XDG_RUNTIME_DIR/lanlink by default)
 
 # clipboard = true           # put received text on the clipboard (needs wl-clipboard or xclip)
+# song_command = ["music-tui", "--like"]   # run with artist, title, album, isrc for songs the phone recognizes; [] turns it off
 
 # pointer_speed = 1.0
 # scroll_speed = 1.0         # wheel notches per received scroll event

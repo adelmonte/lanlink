@@ -536,8 +536,24 @@ impl Daemon {
                 tokio::spawn(async move { mpris::handle_request(self, &id, p).await });
             }
             protocol::MOUSEPAD => input::handle(&self, id, &p),
+            protocol::SONG => self.song(&p),
             _ => {}
         }
+    }
+
+    fn song(&self, p: &Packet) {
+        let Some((cmd, args)) = self.cfg.song_command.split_first() else { return };
+        let (Some(artist), Some(title)) = (p.str("artist"), p.str("title")) else { return };
+        let mut c = tokio::process::Command::new(cmd);
+        c.args(args).args([artist, title, p.str("album").unwrap_or(""), p.str("isrc").unwrap_or("")]);
+        let what = format!("{artist} - {title}");
+        tokio::spawn(async move {
+            match c.status().await {
+                Ok(s) if s.success() => eprintln!("lanlink: song {what}"),
+                Ok(s) => eprintln!("lanlink: song command for {what}: {s}"),
+                Err(e) => eprintln!("lanlink: song command for {what}: {e}"),
+            }
+        });
     }
 
     fn handle_pair(self: Arc<Self>, id: &str, p: &Packet) {

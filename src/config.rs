@@ -20,6 +20,9 @@ pub struct Config {
     pub tcp_port: u16,
     /// Put text received from a device on the clipboard.
     pub clipboard: bool,
+    /// Run with artist, title, album and ISRC for each song the phone recognizes.
+    /// Empty turns it off.
+    pub song_command: Vec<String>,
     /// Broadcast and listen for other devices on UDP 1716.
     pub discovery: bool,
     /// Multiplier for pointer movement (both directions).
@@ -49,6 +52,7 @@ impl Default for Config {
             mount_dir: dirs::runtime_dir().map(|d| d.join("lanlink")).unwrap_or_else(|| home.join("Phone")),
             tcp_port: 1716,
             clipboard: true,
+            song_command: vec!["music-tui".into(), "--like".into()],
             discovery: true,
             pointer_speed: 1.0,
             scroll_speed: 1.0,
